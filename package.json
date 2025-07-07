@@ -1,0 +1,87 @@
+{
+  "name": "@mcpdotdirect/create-mcp-server",
+  "module": "src/index.ts",
+  "type": "module",
+  "version": "2.0.1",
+  "description": "CLI tool to create a new MCP (Model Context Protocol) server project",
+  "private": false,
+  "main": "build/index.js",
+  "bin": {
+    "create-mcp-server": "./bin/create-mcp-server.js"
+  },
+  "files": [
+    "bin",
+    "src/",
+    "build/",
+    ".gitignore",
+    "tsconfig.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "start": "bun run src/index.ts",
+    "build": "bun build src/index.ts --outdir build --target node",
+    "build:http": "bun build src/server/http-server.ts --outdir build --target node --outfile http-server.js",
+    "dev": "bun --watch src/index.ts",
+    "start:http": "bun run src/server/http-server.ts",
+    "dev:http": "bun --watch src/server/http-server.ts",
+    "prepublishOnly": "bun run build && bun run build:http",
+    "version:patch": "npm version patch",
+    "version:minor": "npm version minor",
+    "version:major": "npm version major",
+    "release": "npm publish",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
+    "changelog:latest": "conventional-changelog -p angular -r 1 > RELEASE_NOTES.md",
+    "test": "bun run test-oklog.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mcpdotdirect/template-mcp-server.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "template",
+    "server",
+    "ai",
+    "agent",
+    "create",
+    "generator",
+    "starter",
+    "boilerplate"
+  ],
+  "author": "mcpdotdirect",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/mcpdotdirect/template-mcp-server/issues"
+  },
+  "homepage": "https://github.com/mcpdotdirect/template-mcp-server#readme",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/cors": "^2.8.17",
+    "@types/node": "^20.17.24",
+    "conventional-changelog-cli": "^5.0.0"
+  },
+  "peerDependencies": {
+    "@valibot/to-json-schema": "^1.0.0",
+    "effect": "^3.14.4",
+    "typescript": "^5.8.2"
+  },
+  "dependencies": {
+    "@gitbeaker/rest": "^42.5.0",
+    "axios": "^1.10.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.0.1",
+    "fastmcp": "^3.6.2",
+    "pino": "^9.7.0",
+    "pino-pretty": "^13.0.0",
+    "sury": "^10.0.4",
+    "zod": "^3.24.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

@@ -1,0 +1,118 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Project-specific Code Review Rules Configuration",
+  "description": "Configuration schema for project-specific code review rules",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string",
+      "description": "Overall description of this configuration file"
+    },
+    "projects": {
+      "type": "object",
+      "description": "Map of project identifiers to their specific configurations",
+      "patternProperties": {
+        "^.*$": {
+          "$ref": "#/definitions/ProjectSpecificConfig"
+        }
+      }
+    }
+  },
+  "required": ["projects"],
+  "definitions": {
+    "ProjectSpecificConfig": {
+      "type": "object",
+      "properties": {
+        "projectIdentifier": {
+          "oneOf": [
+            { "type": "string" },
+            { "type": "number" }
+          ],
+          "description": "Project identifier (e.g., gitlab project path 'group/project' or project ID)"
+        },
+        "projectName": {
+          "type": "string",
+          "description": "Human-readable project name"
+        },
+        "description": {
+          "type": "string",
+          "description": "Project description"
+        },
+        "enableDefaultRules": {
+          "type": "boolean",
+          "description": "Whether to enable default rules for detected project types",
+          "default": true
+        },
+        "excludeDefaultRules": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "List of default rule IDs to exclude"
+        },
+        "additionalProjectTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Additional project types to include (beyond auto-detected types)"
+        },
+        "rules": {
+          "type": "array",
+          "description": "Project-specific code review rules",
+          "items": {
+            "$ref": "#/definitions/CodeReviewRule"
+          }
+        }
+      },
+      "required": ["projectIdentifier", "projectName", "rules"],
+      "additionalProperties": false
+    },
+    "CodeReviewRule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for this rule"
+        },
+        "title": {
+          "type": "string",
+          "description": "Short title of the rule"
+        },
+        "description": {
+          "type": "string",
+          "description": "Detailed description of what this rule checks"
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["error", "warning", "info"],
+          "description": "Severity level of violations"
+        },
+        "category": {
+          "type": "string",
+          "enum": ["security", "performance", "maintainability", "style", "best-practice"],
+          "description": "Category of the rule"
+        },
+        "applicableFiles": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "File patterns this rule applies to (glob patterns supported)"
+        },
+        "projectTypes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Project types this rule applies to"
+        }
+      },
+      "required": ["id", "title", "description", "severity", "category"],
+      "additionalProperties": false
+    }
+  }
+} 
