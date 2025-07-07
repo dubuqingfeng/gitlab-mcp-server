@@ -1,5 +1,5 @@
 {
-  "name": "@mcpdotdirect/create-mcp-server",
+  "name": "gitlab-mcp-server",
   "module": "src/index.ts",
   "type": "module",
   "version": "2.0.1",
@@ -36,7 +36,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mcpdotdirect/template-mcp-server.git"
+    "url": "git+https://github.com/dubuqingfeng/gitlab-mcp-server.git"
   },
   "publishConfig": {
     "access": "public"
@@ -53,12 +53,12 @@
     "starter",
     "boilerplate"
   ],
-  "author": "mcpdotdirect",
+  "author": "dubuqingfeng",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/mcpdotdirect/template-mcp-server/issues"
+    "url": "https://github.com/dubuqingfeng/gitlab-mcp-server/issues"
   },
-  "homepage": "https://github.com/mcpdotdirect/template-mcp-server#readme",
+  "homepage": "https://github.com/dubuqingfeng/gitlab-mcp-server#readme",
   "devDependencies": {
     "@types/bun": "latest",
     "@types/cors": "^2.8.17",
