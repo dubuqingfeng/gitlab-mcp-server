@@ -24,6 +24,12 @@ export GITLAB_URL="https://gitlab.com"  # 可选，默认为 gitlab.com（注意
 ## 可用工具
 - `get_merge_request`: 获取特定 MR 的详细信息
 - `list_merge_requests`: 列出项目的 MR 列表
+- `gitlab_code_review`: 对 MR 进行综合代码审查
+- `gitlab_branch_code_review`: 对指定分支进行全面代码审查
+- `gitlab_commit_review`: 对指定提交进行代码审查
+- `get_file_content`: 获取仓库中特定文件的内容
+- `list_branches`: 列出项目的所有分支
+- `write_gitlab_mr_note`: 在 MR 中写入审查备注
 
 ## 依赖
 - `@gitbeaker/rest`: GitLab API 客户端库

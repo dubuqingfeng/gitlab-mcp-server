@@ -536,4 +536,201 @@ ${mr.description || 'No description provided'}
     
     return detectedTypes;
   }
+
+  /**
+   * 获取指定分支的所有文件列表
+   */
+  static async getBranchFiles(projectId: string | number, branch: string = 'main', recursive: boolean = true): Promise<any[]> {
+    try {
+      const api = getGitlabClient();
+      
+      // 获取分支的文件树
+      const tree = await api.Repositories.allRepositoryTrees(projectId, {
+        ref: branch,
+        recursive: recursive,
+        perPage: 1000 // 增加单页限制
+      });
+      
+      // 过滤出文件（排除目录）
+      const files = Array.isArray(tree) ? tree.filter((item: any) => item.type === 'blob') : [];
+      
+      return files;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`GitLab API error: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 获取指定文件的内容
+   */
+  static async getFileContent(projectId: string | number, filePath: string, branch: string = 'main'): Promise<string> {
+    try {
+      const api = getGitlabClient();
+      
+      const file = await api.RepositoryFiles.show(projectId, filePath, branch);
+      
+      // GitLab返回的内容是base64编码的
+      if (file.content && file.encoding === 'base64') {
+        return Buffer.from(file.content, 'base64').toString('utf-8');
+      }
+      
+      return file.content || '';
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to get file content: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 获取指定提交的详细信息
+   */
+  static async getCommit(projectId: string | number, commitSha: string): Promise<any> {
+    try {
+      const api = getGitlabClient();
+      const commit = await api.Commits.show(projectId, commitSha);
+      return commit;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`GitLab API error: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 获取指定提交的文件变更 (简化版本，基于提交信息推断)
+   */
+  static async getCommitDiff(projectId: string | number, commitSha: string): Promise<any> {
+    try {
+      const api = getGitlabClient();
+      // 获取提交详细信息，其中包含stats等基础变更信息
+      const commit = await api.Commits.show(projectId, commitSha);
+      
+      // 注意：这是一个简化的实现，主要提供提交的基本信息
+      // 如需完整的diff内容，可能需要额外的API调用或使用其他端点
+      const stats = commit.stats || {};
+      
+      return {
+        commit_sha: commitSha,
+        changes: [], // 暂时为空，可以在后续版本中扩展
+        stats: {
+          additions: stats.additions || 0,
+          deletions: stats.deletions || 0,
+          total: stats.total || 0
+        },
+        files_changed: commit.stats?.total || 0,
+        message: commit.message,
+        author: commit.author_name
+      };
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`GitLab API error: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 获取分支信息
+   */
+  static async getBranch(projectId: string | number, branchName: string): Promise<any> {
+    try {
+      const api = getGitlabClient();
+      const branch = await api.Branches.show(projectId, branchName);
+      return branch;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`GitLab API error: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 列出项目的所有分支
+   */
+  static async listBranches(projectId: string | number, search?: string): Promise<any[]> {
+    try {
+      const api = getGitlabClient();
+      const branches = await api.Branches.all(projectId, {
+        search: search,
+        perPage: 100
+      });
+      
+      return Array.isArray(branches) ? branches : [branches];
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`GitLab API error: ${error.message}`);
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * 格式化分支代码审查报告
+   */
+  static formatBranchCodeReview(branch: any, files: any[], projectName: string, detectedTypes: string[]): string {
+    return `
+🌿 **分支代码审查报告**
+
+📋 **分支信息**
+- **分支名**: ${branch.name}
+- **项目**: ${projectName}
+- **最新提交**: ${branch.commit?.short_id} - ${branch.commit?.title}
+- **作者**: ${branch.commit?.author_name}
+- **提交时间**: ${new Date(branch.commit?.committed_date).toLocaleString()}
+
+📂 **代码库概览**
+- **文件总数**: ${files.length}
+- **检测到的项目类型**: ${detectedTypes.join(', ')}
+
+📁 **文件结构**
+${files.slice(0, 20).map(file => `- ${file.path} (${file.mode})`).join('\n')}
+${files.length > 20 ? `\n... 还有 ${files.length - 20} 个文件` : ''}
+    `.trim();
+  }
+
+  /**
+   * 格式化提交审查报告
+   */
+  static formatCommitReview(commit: any, changes: any, projectName: string): string {
+    return `
+📝 **提交代码审查报告**
+
+📋 **提交信息**
+- **提交SHA**: ${commit.short_id} (${commit.id})
+- **项目**: ${projectName}
+- **标题**: ${commit.title}
+- **作者**: ${commit.author_name} <${commit.author_email}>
+- **提交时间**: ${new Date(commit.committed_date).toLocaleString()}
+- **提交者**: ${commit.committer_name} <${commit.committer_email}>
+
+📝 **提交描述**:
+${commit.message || '无描述'}
+
+🔍 **文件变更**
+${changes.changes && changes.changes.length > 0 ? `共修改了 ${changes.changes.length} 个文件` : '无文件变更'}
+    `.trim();
+  }
+
+  /**
+   * 为提交写评论
+   */
+  static async writeCommitNote(projectId: string | number, commitSha: string, note: string) {
+    try {
+      const api = getGitlabClient();
+      const result = await api.CommitDiscussions.create(projectId, commitSha, note);
+      return result;
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new Error(`GitLab API error: ${error.message}`);
+      }
+      throw error;
+    }
+  }
 }

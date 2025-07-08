@@ -527,4 +527,275 @@ export function registerGitlabTools(server: FastMCP) {
       }
     }
   });
+
+  server.addTool({
+    name: "gitlab_branch_code_review",
+    description: "Perform comprehensive code review for a specific branch in GitLab project",
+    parameters: z.object({
+      projectId: z.string().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      branchName: z.string().describe("Branch name to review (e.g., 'main', 'develop', 'feature/new-feature')"),
+      maxFiles: z.number().optional().default(50).describe("Maximum number of files to analyze (default: 50)")
+    }),
+    execute: async (params) => {
+      try {
+        const { projectId, branchName, maxFiles = 50 } = params;
+        
+        // Get project and branch information
+        const [project, branch, files] = await Promise.all([
+          services.GitlabService.getProject(projectId),
+          services.GitlabService.getBranch(projectId, branchName),
+          services.GitlabService.getBranchFiles(projectId, branchName, true)
+        ]);
+
+        // Extract file paths for project type detection
+        const filePaths = files.slice(0, 100).map((file: any) => file.path);
+        const detectedTypes = services.GitlabService.detectProjectTypes({ project }, { changes: files.map(f => ({ new_path: f.path })) });
+
+        // Get applicable rules for detected project types
+        const applicableRules = getDefaultRulesForProjectTypes(detectedTypes);
+
+        let review = `🌿 **分支代码审查报告**\n\n`;
+        
+        // Branch Info section
+        review += `📋 **分支信息**\n`;
+        review += `- **分支名**: ${branch.name}\n`;
+        review += `- **项目**: ${project.name}\n`;
+        review += `- **最新提交**: ${branch.commit?.short_id} - ${branch.commit?.title}\n`;
+        review += `- **作者**: ${branch.commit?.author_name}\n`;
+        review += `- **提交时间**: ${new Date(branch.commit?.committed_date).toLocaleString()}\n\n`;
+
+        // Code overview
+        review += `📂 **代码库概览**\n`;
+        review += `- **文件总数**: ${files.length}\n`;
+        review += `- **分析文件数**: ${Math.min(files.length, maxFiles)}\n`;
+        if (detectedTypes.length > 0 && !detectedTypes.includes('*')) {
+          review += `- **检测到的项目类型**: ${detectedTypes.join(', ')}\n`;
+        }
+        review += `\n`;
+
+        // File structure (limited display)
+        const displayFiles = files.slice(0, 20);
+        review += `📁 **文件结构示例**\n`;
+        review += displayFiles.map((file: any) => `- ${file.path}`).join('\n');
+        if (files.length > 20) {
+          review += `\n... 还有 ${files.length - 20} 个文件\n`;
+        }
+        review += `\n`;
+
+        // Applicable rules
+        if (applicableRules.length > 0) {
+          review += `📚 **适用的代码审查规则** (${applicableRules.length} 条):\n\n`;
+          review += formatRulesByCategory(applicableRules);
+        }
+
+        // Review checklist for branch
+        review += `📝 **分支代码审查检查清单**:\n\n`;
+        review += `- ✅ 项目结构是否合理且符合最佳实践\n`;
+        review += `- ✅ 代码风格是否一致\n`;
+        review += `- ✅ 安全性配置和实践\n`;
+        review += `- ✅ 性能优化机会\n`;
+        review += `- ✅ 文档和注释完整性\n`;
+        review += `- ✅ 测试覆盖率\n`;
+        review += `- ✅ 依赖管理和版本控制\n\n`;
+
+        // Suggestions
+        review += `💡 **建议**:\n`;
+        review += `- 重点关注核心业务逻辑文件\n`;
+        review += `- 检查配置文件的安全性\n`;
+        review += `- 确保关键功能有适当的测试\n`;
+        review += `- 如需详细文件分析，请使用 get_file_content 工具\n\n`;
+
+        return review;
+      } catch (error) {
+        return `❌ 分支代码审查失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  server.addTool({
+    name: "gitlab_commit_review",
+    description: "Perform code review for a specific commit in GitLab project",
+    parameters: z.object({
+      projectId: z.string().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      commitSha: z.string().describe("Commit SHA to review (full or short SHA)")
+    }),
+    execute: async (params) => {
+      try {
+        const { projectId, commitSha } = params;
+        
+        // Get project and commit information
+        const [project, commit, commitDiff] = await Promise.all([
+          services.GitlabService.getProject(projectId),
+          services.GitlabService.getCommit(projectId, commitSha),
+          services.GitlabService.getCommitDiff(projectId, commitSha)
+        ]);
+
+        // Basic project type detection based on commit title and message
+        const detectedTypes = services.GitlabService.detectProjectTypes(
+          { project, title: commit.title, description: commit.message }, 
+          commitDiff
+        );
+
+        // Get applicable rules
+        const applicableRules = getDefaultRulesForProjectTypes(detectedTypes);
+
+        let review = `📝 **提交代码审查报告**\n\n`;
+        
+        // Commit Info section
+        review += `📋 **提交信息**\n`;
+        review += `- **提交SHA**: ${commit.short_id} (${commit.id})\n`;
+        review += `- **项目**: ${project.name}\n`;
+        review += `- **标题**: ${commit.title}\n`;
+        review += `- **作者**: ${commit.author_name} <${commit.author_email}>\n`;
+        review += `- **提交时间**: ${new Date(commit.committed_date).toLocaleString()}\n`;
+        review += `- **提交者**: ${commit.committer_name} <${commit.committer_email}>\n\n`;
+
+        // Commit message
+        if (commit.message && commit.message !== commit.title) {
+          review += `📝 **提交描述**:\n`;
+          review += `\`\`\`\n${commit.message}\n\`\`\`\n\n`;
+        }
+
+        // Change statistics
+        if (commitDiff.stats) {
+          review += `📊 **变更统计**:\n`;
+          review += `- **新增行数**: ${commitDiff.stats.additions}\n`;
+          review += `- **删除行数**: ${commitDiff.stats.deletions}\n`;
+          review += `- **总变更**: ${commitDiff.stats.total}\n`;
+          review += `- **修改文件**: ${commitDiff.files_changed} 个\n\n`;
+        }
+
+        // Project type detection
+        if (detectedTypes.length > 0 && !detectedTypes.includes('*')) {
+          review += `🎯 **检测到的项目类型**: ${detectedTypes.join(', ')}\n\n`;
+        }
+
+        // Applicable rules
+        if (applicableRules.length > 0) {
+          review += `📚 **适用的代码审查规则** (${applicableRules.length} 条):\n\n`;
+          review += formatRulesByCategory(applicableRules);
+        }
+
+        // Review checklist for commit
+        review += `📝 **提交审查检查清单**:\n\n`;
+        review += `- ✅ 提交信息是否清晰描述了变更内容\n`;
+        review += `- ✅ 变更范围是否合理（单一职责）\n`;
+        review += `- ✅ 代码变更是否遵循项目规范\n`;
+        review += `- ✅ 是否有潜在的安全风险\n`;
+        review += `- ✅ 性能影响评估\n`;
+        review += `- ✅ 是否影响现有功能\n`;
+        review += `- ✅ 测试覆盖是否充分\n\n`;
+
+        // Suggestions
+        review += `💡 **建议**:\n`;
+        review += `- 检查提交是否遵循原子性原则\n`;
+        review += `- 确认变更与提交信息的一致性\n`;
+        review += `- 如需查看具体文件变更，请使用 MR 相关工具\n`;
+        review += `- 考虑是否需要相应的文档更新\n\n`;
+
+        return review;
+      } catch (error) {
+        return `❌ 提交审查失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  server.addTool({
+    name: "get_file_content",
+    description: "Get the content of a specific file from a GitLab repository",
+    parameters: z.object({
+      projectId: z.string().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      filePath: z.string().describe("Path to the file in the repository (e.g., 'src/index.ts')"),
+      branch: z.string().optional().default("main").describe("Branch name (default: 'main')")
+    }),
+    execute: async (params) => {
+      try {
+        const { projectId, filePath, branch = "main" } = params;
+        
+        const content = await services.GitlabService.getFileContent(projectId, filePath, branch);
+        
+        // Detect file type for appropriate formatting
+        const fileExtension = filePath.split('.').pop()?.toLowerCase();
+        const languageMap: { [key: string]: string } = {
+          'ts': 'typescript',
+          'tsx': 'typescript',
+          'js': 'javascript',
+          'jsx': 'javascript',
+          'py': 'python',
+          'go': 'go',
+          'rs': 'rust',
+          'java': 'java',
+          'cpp': 'cpp',
+          'c': 'c',
+          'sh': 'bash',
+          'yml': 'yaml',
+          'yaml': 'yaml',
+          'json': 'json',
+          'md': 'markdown',
+          'sql': 'sql'
+        };
+        
+        const language = languageMap[fileExtension || ''] || '';
+        
+        return `📄 **文件内容**: \`${filePath}\` (分支: ${branch})\n\n\`\`\`${language}\n${content}\n\`\`\``;
+      } catch (error) {
+        return `❌ 获取文件内容失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  server.addTool({
+    name: "list_branches",
+    description: "List all branches in a GitLab project",
+    parameters: z.object({
+      projectId: z.string().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      search: z.string().optional().describe("Search pattern for branch names")
+    }),
+    execute: async (params) => {
+      try {
+        const { projectId, search } = params;
+        
+        const branches = await services.GitlabService.listBranches(projectId, search);
+        
+        if (branches.length === 0) {
+          return `没有找到分支${search ? ` (搜索: "${search}")` : ''}`;
+        }
+
+        let output = `🌿 **项目分支列表** (${branches.length} 个分支)${search ? ` - 搜索: "${search}"` : ''}\n\n`;
+        
+        branches.forEach((branch: any) => {
+          const isDefault = branch.default ? ' 🏠 (默认)' : '';
+          const isProtected = branch.protected ? ' 🔒' : '';
+          output += `- **${branch.name}**${isDefault}${isProtected}\n`;
+          if (branch.commit) {
+            output += `  📝 ${branch.commit.short_id}: ${branch.commit.title}\n`;
+            output += `  👤 ${branch.commit.author_name} | 📅 ${new Date(branch.commit.committed_date).toLocaleDateString()}\n`;
+          }
+          output += '\n';
+        });
+        
+        return output;
+      } catch (error) {
+        return `❌ 获取分支列表失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  server.addTool({
+    name: "write_gitlab_commit_note",
+    description: "Write a note to a GitLab commit",
+    parameters: z.object({
+      projectId: z.string().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      commitSha: z.string().describe("Commit SHA to write note to"),
+      note: z.string().describe("Note to write to the commit")
+    }),
+    execute: async (params) => {
+      try {
+        const result = await services.GitlabService.writeCommitNote(params.projectId, params.commitSha, params.note);
+        return `✅ 成功为提交 ${params.commitSha} 添加评论\n\n${JSON.stringify(result, null, 2)}`;
+      } catch (error) {
+        return `❌ 添加提交评论失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
 }
