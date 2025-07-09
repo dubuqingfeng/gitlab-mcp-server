@@ -2,12 +2,12 @@
   "name": "@dubuqingfeng/gitlab-mcp-server",
   "module": "src/index.ts",
   "type": "module",
-  "version": "2.0.2",
-  "description": "CLI tool to create a new MCP (Model Context Protocol) server project",
+  "version": "2.0.5",
+  "description": "GitLab MCP (Model Context Protocol) server for AI agents",
   "private": false,
   "main": "build/index.js",
   "bin": {
-    "create-mcp-server": "./bin/create-mcp-server.js"
+    "gitlab-mcp-server": "build/index.js"
   },
   "files": [
     "bin",
@@ -20,7 +20,7 @@
   ],
   "scripts": {
     "start": "bun run src/index.ts",
-    "build": "bun build src/index.ts --outdir build --target node",
+    "build": "bun build src/index.ts --outdir build --target node && chmod +x build/index.js",
     "build:http": "bun build src/server/http-server.ts --outdir build --target node --outfile http-server.js",
     "dev": "bun --watch src/index.ts",
     "start:http": "bun run src/server/http-server.ts",
