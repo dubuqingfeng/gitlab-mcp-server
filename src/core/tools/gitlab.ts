@@ -584,6 +584,8 @@ export function registerGitlabTools(server: FastMCP) {
         review += `🔧 **后续操作**:\n`;
         review += `- 如需将此审查结果写入MR，请使用 write_gitlab_mr_note 工具\n`;
         review += `- 建议在实际审查代码后，提供具体的改进建议，需要把用到的规则也写入审查报告里\n`;
+        // 添加当前审查时间
+        review += `- 当前审查时间: ${new Date().toLocaleString()}\n`;
         
         // Prepare content for response
         const content = [

@@ -209,7 +209,7 @@ export class LarkClient {
    */
   private formatNoteContent(content: string): string {
     // 限制长度，避免消息过长
-    const maxLength = 1000;
+    const maxLength = 10000;
     let formatted = content;
 
     // 如果内容过长，截断并添加省略号
