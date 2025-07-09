@@ -2,11 +2,11 @@
   "name": "@dubuqingfeng/gitlab-mcp-server",
   "module": "src/index.ts",
   "type": "module",
-  "version": "2.0.8",
+  "version": "2.0.9",
   "description": "GitLab MCP (Model Context Protocol) server for AI agents",
   "private": false,
   "bin": {
-    "evm-mcp-server": "./bin/cli.js"
+    "gitlab-mcp-server": "./bin/cli.js"
   },
   "main": "build/index.js",
   "files": [

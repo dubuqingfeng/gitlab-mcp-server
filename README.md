@@ -29,12 +29,70 @@ export GITLAB_URL="https://gitlab.com"  # 可选，默认为 gitlab.com（注意
 - `gitlab_commit_review`: 对指定提交进行代码审查
 - `get_file_content`: 获取仓库中特定文件的内容
 - `list_branches`: 列出项目的所有分支
-- `write_gitlab_mr_note`: 在 MR 中写入审查备注
+- `write_gitlab_mr_note`: 在 MR 中写入审查备注（支持灵活的通知模式）
 
 ## 依赖
 - `@gitbeaker/rest`: GitLab API 客户端库
 
 详细使用说明请参考 [GitLab 文档](docs/gitlab.md)
+
+# Lark 机器人集成
+
+支持通过 Lark（飞书）机器人发送通知，可以在写入 GitLab MR 评论时自动发送 Lark 通知。
+
+## 环境变量
+```bash
+export LARK_WEBHOOK_URL="https://open.feishu.cn/open-apis/bot/v2/hook/xxx"  # Lark 机器人 Webhook URL
+export LARK_SECRET_KEY="your_secret_key"  # 可选：签名密钥（如果机器人启用了签名验证）
+export LARK_ENABLE_NOTIFICATION="true"  # 可选：是否启用通知，默认为 true
+export GITLAB_NOTE_MODE="gitlab_only"  # 可选：通知模式 - gitlab_only(仅GitLab)、lark_only(仅Lark)、both(两者都发)，默认为 gitlab_only
+```
+
+## 功能特性
+- 灵活的通知模式：可以选择只写 GitLab、只发 Lark 或两者都做
+- 支持富文本卡片消息，包含项目名称、MR 标题、评论内容等信息
+- 支持自定义 Lark 消息（文本或卡片格式）
+- 失败不影响主流程，确保 GitLab 操作的可靠性
+
+## 通知模式说明
+- **gitlab_only**: 仅写入 GitLab MR 评论，不发送 Lark 通知（默认）
+- **lark_only**: 仅发送 Lark 通知，不写入 GitLab MR 评论
+- **both**: 同时写入 GitLab MR 评论并发送 Lark 通知
+
+## 使用示例
+```javascript
+// 使用环境变量配置的默认模式
+await write_gitlab_mr_note({
+  projectId: "group/project",
+  mergeRequestIid: 123,
+  note: "代码审查完成，LGTM！"
+});
+
+// 明确指定只写入 GitLab
+await write_gitlab_mr_note({
+  projectId: "group/project",
+  mergeRequestIid: 123,
+  note: "内部备注",
+  notificationMode: "gitlab_only"
+});
+
+// 只发送 Lark 通知，不写入 GitLab
+await write_gitlab_mr_note({
+  projectId: "group/project",
+  mergeRequestIid: 123,
+  note: "团队通知：代码已审查",
+  notificationMode: "lark_only"
+});
+
+// 强制两者都执行（覆盖环境变量）
+await write_gitlab_mr_note({
+  projectId: "group/project",
+  mergeRequestIid: 123,
+  note: "重要通知",
+  notificationMode: "both"
+});
+
+```
 
 # Code Review Rules (代码审查规则)
 

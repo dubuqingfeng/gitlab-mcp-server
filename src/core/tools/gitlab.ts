@@ -353,18 +353,113 @@ export function registerGitlabTools(server: FastMCP) {
 
   server.addTool({
     name: "write_gitlab_mr_note",
-    description: "Write a note to a GitLab merge request",
+    description: "Write a note to a GitLab merge request with configurable notification modes",
     parameters: z.object({
       projectId: z.string().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
       mergeRequestIid: z.number().describe("Merge request IID (internal ID shown in GitLab UI)"),
-      note: z.string().describe("Note to write to the merge request")
+      note: z.string().describe("Note to write to the merge request"),
+      notificationMode: z.enum(['gitlab_only', 'lark_only', 'both']).optional().describe("Notification mode (default: based on GITLAB_NOTE_MODE env var or 'gitlab_only')")
     }),
     execute: async (params) => {
       try {
-        const note = await services.GitlabService.writeNote(params.projectId, params.mergeRequestIid, params.note);
-        return JSON.stringify(note, null, 2);
+        // 获取通知模式：优先使用参数，其次环境变量，最后默认值
+        const envMode = process.env.GITLAB_NOTE_MODE?.toLowerCase();
+        let mode: 'gitlab_only' | 'lark_only' | 'both' = 'gitlab_only';
+        
+        if (params.notificationMode) {
+          mode = params.notificationMode;
+        } else if (envMode === 'gitlab_only' || envMode === 'lark_only' || envMode === 'both') {
+          mode = envMode as 'gitlab_only' | 'lark_only' | 'both';
+        }
+        
+        loggers.gitlab.info('Writing GitLab MR note', { 
+          projectId: params.projectId, 
+          mergeRequestIid: params.mergeRequestIid,
+          mode 
+        });
+        
+        let gitlabResult = null;
+        let larkResult = { sent: false, error: null as any };
+        
+        // 根据 mode 分别调用服务
+        if (mode === 'gitlab_only' || mode === 'both') {
+          // 调用 GitLab 服务写入 note
+          gitlabResult = await services.GitlabService.writeNote(
+            params.projectId,
+            params.mergeRequestIid,
+            params.note
+          );
+          loggers.gitlab.info('GitLab note written successfully', { 
+            noteId: gitlabResult.id 
+          });
+        }
+        
+        if (mode === 'lark_only' || mode === 'both') {
+          // 调用 Lark 服务发送通知
+          try {
+            const larkClient = services.getLarkClient();
+            
+            if (larkClient.isConfigured()) {
+              // 获取 MR 和项目信息用于构建 Lark 卡片
+              const [mr, project] = await Promise.all([
+                services.GitlabService.getMergeRequest({
+                  projectId: params.projectId,
+                  mergeRequestIid: params.mergeRequestIid
+                }),
+                services.GitlabService.getProject(params.projectId)
+              ]);
+              
+              const card = larkClient.buildMRNoteCard({
+                projectName: project.name || 'Unknown Project',
+                mrTitle: mr.title || 'Unknown MR',
+                mrUrl: mr.web_url || '',
+                noteContent: params.note,
+                author: gitlabResult?.author?.name || gitlabResult?.author?.username || 'System',
+                mrIid: params.mergeRequestIid
+              });
+              
+              await larkClient.sendCardMessage(card);
+              larkResult.sent = true;
+              loggers.gitlab.info('Lark notification sent successfully');
+            } else {
+              larkResult.error = 'Lark not configured';
+              loggers.gitlab.warn('Lark service is not configured');
+            }
+          } catch (larkError) {
+            larkResult.error = larkError instanceof Error ? larkError.message : 'Unknown error';
+            loggers.gitlab.error('Failed to send Lark notification', { error: larkError });
+            if (mode === 'lark_only') {
+              throw new Error(`Lark notification failed: ${larkResult.error}`);
+            }
+          }
+        }
+        
+        // 格式化返回结果
+        let response = `✅ 操作完成 (模式: ${mode})\n\n`;
+        
+        if (gitlabResult) {
+          response += `📝 **GitLab Note**\n`;
+          response += `- ID: ${gitlabResult.id}\n`;
+          response += `- 作者: ${gitlabResult.author?.name || 'Unknown'}\n`;
+          response += `- 时间: ${new Date(gitlabResult.created_at).toLocaleString('zh-CN')}\n\n`;
+        }
+        
+        if (larkResult.sent) {
+          response += `🔔 **Lark 通知**: 已发送\n`;
+        } else if (larkResult.error) {
+          response += `⚠️ **Lark 通知**: 失败 - ${larkResult.error}\n`;
+        }
+        
+        if (mode === 'gitlab_only') {
+          response += `\n💡 提示: 仅写入 GitLab，未发送 Lark 通知`;
+        } else if (mode === 'lark_only') {
+          response += `\n💡 提示: 仅发送 Lark 通知，未写入 GitLab`;
+        }
+        
+        return response;
       } catch (error) {
-        return `❌ Error writing note: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        loggers.gitlab.error('Failed to write GitLab MR note', { error });
+        return `❌ 操作失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     }
   });
