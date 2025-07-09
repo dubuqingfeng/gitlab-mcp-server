@@ -1,8 +1,8 @@
 {
-  "name": "gitlab-mcp-server",
+  "name": "@dubuqingfeng/gitlab-mcp-server",
   "module": "src/index.ts",
   "type": "module",
-  "version": "2.0.1",
+  "version": "2.0.2",
   "description": "CLI tool to create a new MCP (Model Context Protocol) server project",
   "private": false,
   "main": "build/index.js",

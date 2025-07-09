@@ -6,17 +6,14 @@ const PORT = parseInt(process.env.PORT || "3000", 10);
 // 检查环境变量
 
 // GITLAB 相关
-let gitlab_is_enabled = process.env.GITLAB_IS_ENABLED === 'true' ? true : false;
-if (gitlab_is_enabled) {
-  if (!process.env.GITLAB_URL) {
-    console.error("GITLAB_URL environment variable is required");
-    process.exit(1);
-  }
+if (!process.env.GITLAB_URL) {
+  console.error("GITLAB_URL environment variable is required");
+  process.exit(1);
+}
 
-  if (!process.env.GITLAB_TOKEN) {
-    console.error("GITLAB_TOKEN environment variable is required");
-    process.exit(1);
-  }
+if (!process.env.GITLAB_TOKEN) {
+  console.error("GITLAB_TOKEN environment variable is required");
+  process.exit(1);
 }
 
 async function main() {
