@@ -1,0 +1,55 @@
+# Source files
+src/
+bin/
+
+# Configuration files
+tsconfig.json
+project-rules.config.json
+project-rules-schema.json
+
+# Documentation (except README and LICENSE)
+docs/
+
+# Test files
+test-*.js
+*.test.ts
+*.spec.ts
+
+# Development files
+.gitignore
+.editorconfig
+.eslintrc*
+.prettierrc*
+
+# Build directories (keep only dist)
+build/
+
+# Environment files
+.env*
+
+# Git and CI
+.git/
+.github/
+.gitlab-ci.yml
+
+# Editor specific
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Other
+gitlab-project-map.json
+CHANGELOG.md
+RELEASE_NOTES.md 
