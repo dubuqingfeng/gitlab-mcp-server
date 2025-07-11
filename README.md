@@ -31,6 +31,11 @@ export GITLAB_URL="https://gitlab.com"  # 可选，默认为 gitlab.com（注意
 - `list_branches`: 列出项目的所有分支
 - `write_gitlab_mr_note`: 在 MR 中写入审查备注（支持灵活的通知模式）
 
+### 🆕 专门的代码审查模式
+- `gitlab_code_style_review`: 代码风格优化审查模式 - 专注于代码风格和最佳实践
+- `gitlab_general_security_review`: 通用安全扫描审查模式 - 专注于常见安全漏洞检查
+- `gitlab_professional_security_review`: 专业安全扫描审查模式 - 支持自定义安全规则的高级扫描
+
 ## 依赖
 - `@gitbeaker/rest`: GitLab API 客户端库
 
@@ -127,6 +132,55 @@ await write_gitlab_mr_note({
 - 支持排除特定的默认规则
 - 可以添加额外的项目类型
 
+### 🎯 专门代码审查模式详细说明
+
+#### 1. 代码风格优化模式 (`gitlab_code_style_review`)
+专注于代码风格和编码最佳实践的审查模式，包括：
+- 一致的命名规范检查
+- 函数和类长度控制
+- 代码重复检测
+- 注释质量评估
+- 导入语句组织
+- 魔法数字替换
+- 错误消息清晰度
+- API设计一致性
+
+#### 2. 通用安全扫描模式 (`gitlab_general_security_review`)
+专注于常见安全漏洞检查的审查模式，包括：
+- 敏感数据加密检查
+- 用户输入验证
+- 身份验证和授权
+- 会话管理安全
+- 错误处理安全
+- 依赖包漏洞扫描
+- 文件上传安全
+- CORS和限流配置
+- 安全日志记录
+
+#### 3. 专业安全扫描模式 (`gitlab_professional_security_review`)
+专门针对加密货币钱包和区块链应用的安全审查，重点保护助记词、私钥等敏感信息：
+- 🌐 网络请求白名单限制，防止敏感信息传播
+- 🚫 日志输出和本地文件写入禁止
+- 🔐 签名结果数据泄露防护
+- 🛡️ 错误信息脱敏和敏感信息硬编码检测
+- 📦 依赖管理安全（go.mod replace 禁用等）
+- 💻 反射和动态调用检测
+- ⚠️ 危险关键字屏蔽（unsafe、reflect、cat、replace）
+
+### 📚 使用示例
+
+```bash
+# 代码风格优化审查
+gitlab_code_style_review --projectId "group/project" --mergeRequestIid 123
+
+# 通用安全扫描审查
+gitlab_general_security_review --projectId "group/project" --mergeRequestIid 123
+
+# 专业安全扫描审查（支持自定义规则）
+gitlab_professional_security_review --projectId "group/project" --mergeRequestIid 123 --customRules [...]
+```
+
 详细使用说明请参考：
 - [Code Review 文档](docs/codereview.md)
 - [项目特定规则配置指南](docs/project-specific-rules.md)
+- [专门的代码审查模式](docs/specialized-review-modes.md) - 🆕 新增的三种专门审查模式详细说明

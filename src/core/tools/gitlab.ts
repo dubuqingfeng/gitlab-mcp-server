@@ -17,7 +17,10 @@ import {
 import {
   logFormattedContent,
   formatRulesByCategory,
-  collectMergeRequestRules
+  collectMergeRequestRules,
+  collectCodeStyleOptimizationRules,
+  collectGeneralSecurityScanRules,
+  collectProfessionalSecurityScanRules
 } from "../utils/gitlab-helpers.js";
 import { loggers } from "../utils/logger.js";
 
@@ -892,6 +895,364 @@ export function registerGitlabTools(server: FastMCP) {
         return `✅ 成功为提交 ${params.commitSha} 添加评论\n\n${JSON.stringify(result, null, 2)}`;
       } catch (error) {
         return `❌ 添加提交评论失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  // === 新增三种专门的代码审查模式 ===
+
+  server.addTool({
+    name: "gitlab_code_style_review",
+    description: "Perform code style optimization review for a GitLab merge request, focusing on best practices and code quality",
+    parameters: z.object({
+      projectId: z.string().optional().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      mergeRequestIid: z.number().optional().describe("Merge request IID (internal ID shown in GitLab UI)"),
+      url: z.string().optional().describe("GitLab merge request URL"),
+    }),
+    execute: async (params) => {
+      try {
+        // 使用优化后的获取逻辑
+        const { projectId, mergeRequestIid } = await services.GitlabService.getProjectAndMRInfo(params);
+        
+        // Get merge request details and changes
+        const [mr, changes] = await Promise.all([
+          services.GitlabService.getMergeRequest({
+            projectId: projectId,
+            mergeRequestIid: mergeRequestIid
+          }),
+          services.GitlabService.getMergeRequestChanges(projectId, mergeRequestIid)
+        ]);
+
+        // Get MR info for review report
+        const projectName = mr.project?.name || '';
+        const title = mr.title || '';
+        
+        // Detect project type based on MR info and changes
+        let detectedTypes = services.GitlabService.detectProjectTypes(mr, changes);
+
+        // Collect code style optimization rules
+        const ruleCollection = collectCodeStyleOptimizationRules(mr, changes, detectedTypes);
+        const { 
+          allRules, 
+          projectSpecificRules, 
+          hasProjectConfig, 
+          projectConfig 
+        } = ruleCollection;
+
+        // Start building the review
+        let review = `🎨 **代码风格优化审查报告**\n\n`;
+        
+        // MR Info section
+        review += `📋 **MR信息**\n`;
+        review += `- **标题**: ${title}\n`;
+        review += `- **分支**: ${mr.source_branch} → ${mr.target_branch}\n`;
+        review += `- **作者**: ${mr.author?.name || 'Unknown'}\n`;
+        review += `- **状态**: ${mr.state}\n`;
+        review += `- **项目**: ${projectName}\n\n`;
+
+        if (detectedTypes.length > 0 && !detectedTypes.includes('*')) {
+          review += `🎯 **检测到的项目类型**: ${detectedTypes.join(', ')}\n\n`;
+        }
+
+        // Changes summary
+        if (changes.changes && changes.changes.length > 0) {
+          review += `🔍 **变更文件信息**\n`;
+          const changedFiles = changes.changes.map(change => change.new_path || change.old_path).filter(Boolean);
+          review += `变更文件 (${changedFiles.length} 个): ${changedFiles.map(f => `\`${f}\``).join(', ')}\n\n`;
+        }
+
+        // Project-specific configuration
+        if (hasProjectConfig && projectConfig) {
+          review += `🎯 **项目特定配置**: ${projectConfig.projectName}\n`;
+          if (projectConfig.description) {
+            review += `📝 ${projectConfig.description}\n`;
+          }
+          
+          if (projectSpecificRules.length > 0) {
+            review += `\n📋 **项目特定代码风格规则** (${projectSpecificRules.length} 条):\n\n`;
+            review += formatRulesByCategory(projectSpecificRules, '项目特定');
+          }
+        }
+
+        // All applicable rules
+        if (allRules.length > 0) {
+          review += `🎨 **代码风格优化规则** (${allRules.length} 条):\n\n`;
+          review += formatRulesByCategory(allRules);
+        }
+
+        // Style-specific checklist
+        review += `📝 **代码风格检查清单**:\n\n`;
+        review += `- ✅ 命名规范是否一致（变量、函数、类等）\n`;
+        review += `- ✅ 函数和类的长度是否合理\n`;
+        review += `- ✅ 代码重复是否已消除\n`;
+        review += `- ✅ 注释是否清晰有意义\n`;
+        review += `- ✅ 导入语句是否有序组织\n`;
+        review += `- ✅ 魔法数字是否已用常量替代\n`;
+        review += `- ✅ 错误消息是否清晰可操作\n`;
+        review += `- ✅ API设计是否一致\n\n`;
+
+        // Suggestions
+        review += `💡 **代码风格优化建议**:\n`;
+        review += `- 关注代码的可读性和一致性\n`;
+        review += `- 确保命名能够自解释\n`;
+        review += `- 重构复杂的函数和类\n`;
+        review += `- 提高代码的可维护性\n`;
+        review += `- 遵循项目的编码规范\n\n`;
+
+        review += `🔧 **后续操作**:\n`;
+        review += `- 如需将此审查结果写入MR，请使用 write_gitlab_mr_note 工具\n`;
+        review += `- 建议重点关注代码风格和最佳实践\n`;
+        review += `- 当前审查时间: ${new Date().toLocaleString()}\n`;
+        
+        return review;
+      } catch (error) {
+        return `❌ 代码风格优化审查失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  server.addTool({
+    name: "gitlab_general_security_review",
+    description: "Perform general security scan review for a GitLab merge request, focusing on common security vulnerabilities",
+    parameters: z.object({
+      projectId: z.string().optional().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      mergeRequestIid: z.number().optional().describe("Merge request IID (internal ID shown in GitLab UI)"),
+      url: z.string().optional().describe("GitLab merge request URL"),
+    }),
+    execute: async (params) => {
+      try {
+        // 使用优化后的获取逻辑
+        const { projectId, mergeRequestIid } = await services.GitlabService.getProjectAndMRInfo(params);
+        
+        // Get merge request details and changes
+        const [mr, changes] = await Promise.all([
+          services.GitlabService.getMergeRequest({
+            projectId: projectId,
+            mergeRequestIid: mergeRequestIid
+          }),
+          services.GitlabService.getMergeRequestChanges(projectId, mergeRequestIid)
+        ]);
+
+        // Get MR info for review report
+        const projectName = mr.project?.name || '';
+        const title = mr.title || '';
+        
+        // Detect project type based on MR info and changes
+        let detectedTypes = services.GitlabService.detectProjectTypes(mr, changes);
+
+        // Collect general security scan rules
+        const ruleCollection = collectGeneralSecurityScanRules(mr, changes, detectedTypes);
+        const { 
+          allRules, 
+          projectSpecificRules, 
+          hasProjectConfig, 
+          projectConfig 
+        } = ruleCollection;
+
+        // Start building the review
+        let review = `🔒 **通用安全扫描审查报告**\n\n`;
+        
+        // MR Info section
+        review += `📋 **MR信息**\n`;
+        review += `- **标题**: ${title}\n`;
+        review += `- **分支**: ${mr.source_branch} → ${mr.target_branch}\n`;
+        review += `- **作者**: ${mr.author?.name || 'Unknown'}\n`;
+        review += `- **状态**: ${mr.state}\n`;
+        review += `- **项目**: ${projectName}\n\n`;
+
+        if (detectedTypes.length > 0 && !detectedTypes.includes('*')) {
+          review += `🎯 **检测到的项目类型**: ${detectedTypes.join(', ')}\n\n`;
+        }
+
+        // Changes summary
+        if (changes.changes && changes.changes.length > 0) {
+          review += `🔍 **变更文件信息**\n`;
+          const changedFiles = changes.changes.map(change => change.new_path || change.old_path).filter(Boolean);
+          review += `变更文件 (${changedFiles.length} 个): ${changedFiles.map(f => `\`${f}\``).join(', ')}\n\n`;
+        }
+
+        // Project-specific configuration
+        if (hasProjectConfig && projectConfig) {
+          review += `🎯 **项目特定配置**: ${projectConfig.projectName}\n`;
+          if (projectConfig.description) {
+            review += `📝 ${projectConfig.description}\n`;
+          }
+          
+          if (projectSpecificRules.length > 0) {
+            review += `\n📋 **项目特定安全规则** (${projectSpecificRules.length} 条):\n\n`;
+            review += formatRulesByCategory(projectSpecificRules, '项目特定');
+          }
+        }
+
+        // All applicable rules
+        if (allRules.length > 0) {
+          review += `🔒 **通用安全扫描规则** (${allRules.length} 条):\n\n`;
+          review += formatRulesByCategory(allRules);
+        }
+
+        // Security-specific checklist
+        review += `📝 **通用安全检查清单**:\n\n`;
+        review += `- ✅ 敏感数据是否已加密存储和传输\n`;
+        review += `- ✅ 用户输入是否已验证和清理\n`;
+        review += `- ✅ 身份验证和授权是否正确实施\n`;
+        review += `- ✅ 会话管理是否安全\n`;
+        review += `- ✅ 错误处理是否避免信息泄露\n`;
+        review += `- ✅ 第三方依赖是否存在已知漏洞\n`;
+        review += `- ✅ 文件上传是否有安全验证\n`;
+        review += `- ✅ API是否有适当的限流和CORS配置\n`;
+        review += `- ✅ 安全日志是否完整\n\n`;
+
+        // Suggestions
+        review += `💡 **通用安全建议**:\n`;
+        review += `- 实施深度防御策略\n`;
+        review += `- 定期更新和扫描依赖包\n`;
+        review += `- 确保所有外部输入都经过验证\n`;
+        review += `- 使用加密保护敏感数据\n`;
+        review += `- 实施适当的访问控制\n`;
+        review += `- 定期进行安全测试\n\n`;
+
+        review += `🔧 **后续操作**:\n`;
+        review += `- 如需将此审查结果写入MR，请使用 write_gitlab_mr_note 工具\n`;
+        review += `- 建议重点关注输入验证和权限控制\n`;
+        review += `- 当前审查时间: ${new Date().toLocaleString()}\n`;
+        
+        return review;
+      } catch (error) {
+        return `❌ 通用安全扫描审查失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    }
+  });
+
+  server.addTool({
+    name: "gitlab_professional_security_review",
+    description: "Perform professional security scan review for a GitLab merge request, focusing on crypto wallet security, network restrictions, and sensitive data protection",
+    parameters: z.object({
+      projectId: z.string().optional().describe("GitLab project ID or project path (e.g., 'group/project' or 123)"),
+      mergeRequestIid: z.number().optional().describe("Merge request IID (internal ID shown in GitLab UI)"),
+      url: z.string().optional().describe("GitLab merge request URL"),
+      customRules: z.array(z.any()).optional().describe("Custom security rules (will be provided later)")
+    }),
+    execute: async (params) => {
+      try {
+        // 使用优化后的获取逻辑
+        const { projectId, mergeRequestIid } = await services.GitlabService.getProjectAndMRInfo(params);
+        
+        // Get merge request details and changes
+        const [mr, changes] = await Promise.all([
+          services.GitlabService.getMergeRequest({
+            projectId: projectId,
+            mergeRequestIid: mergeRequestIid
+          }),
+          services.GitlabService.getMergeRequestChanges(projectId, mergeRequestIid)
+        ]);
+
+        // Get MR info for review report
+        const projectName = mr.project?.name || '';
+        const title = mr.title || '';
+        
+        // Detect project type based on MR info and changes
+        let detectedTypes = services.GitlabService.detectProjectTypes(mr, changes);
+
+        // Collect professional security scan rules
+        const ruleCollection = collectProfessionalSecurityScanRules(mr, changes, detectedTypes, params.customRules);
+        const { 
+          allRules, 
+          projectSpecificRules, 
+          customRules,
+          hasProjectConfig, 
+          projectConfig 
+        } = ruleCollection;
+
+        // Start building the review
+        let review = `🛡️ **专业安全扫描审查报告**\n\n`;
+        
+        // MR Info section
+        review += `📋 **MR信息**\n`;
+        review += `- **标题**: ${title}\n`;
+        review += `- **分支**: ${mr.source_branch} → ${mr.target_branch}\n`;
+        review += `- **作者**: ${mr.author?.name || 'Unknown'}\n`;
+        review += `- **状态**: ${mr.state}\n`;
+        review += `- **项目**: ${projectName}\n\n`;
+
+        if (detectedTypes.length > 0 && !detectedTypes.includes('*')) {
+          review += `🎯 **检测到的项目类型**: ${detectedTypes.join(', ')}\n\n`;
+        }
+
+        // Changes summary
+        if (changes.changes && changes.changes.length > 0) {
+          review += `🔍 **变更文件信息**\n`;
+          const changedFiles = changes.changes.map(change => change.new_path || change.old_path).filter(Boolean);
+          review += `变更文件 (${changedFiles.length} 个): ${changedFiles.map(f => `\`${f}\``).join(', ')}\n\n`;
+        }
+
+        // Custom rules info
+        if (customRules.length > 0) {
+          review += `🎯 **自定义安全规则** (${customRules.length} 条):\n`;
+          review += formatRulesByCategory(customRules, '自定义');
+        }
+
+        // Project-specific configuration
+        if (hasProjectConfig && projectConfig) {
+          review += `🎯 **项目特定配置**: ${projectConfig.projectName}\n`;
+          if (projectConfig.description) {
+            review += `📝 ${projectConfig.description}\n`;
+          }
+          
+          if (projectSpecificRules.length > 0) {
+            review += `\n📋 **项目特定安全规则** (${projectSpecificRules.length} 条):\n\n`;
+            review += formatRulesByCategory(projectSpecificRules, '项目特定');
+          }
+        }
+
+        // All applicable rules
+        if (allRules.length > 0) {
+          review += `🛡️ **专业安全扫描规则** (${allRules.length} 条):\n\n`;
+          review += formatRulesByCategory(allRules);
+        }
+
+        // Professional security checklist
+        review += `📝 **专业安全检查清单**:\n\n`;
+        review += `**🌐 网络安全类**\n`;
+        review += `- ✅ 网络请求是否采用白名单限制\n`;
+        review += `- ✅ 是否禁止或限制日志输出\n`;
+        review += `- ✅ 是否禁止本地文件写入操作\n\n`;
+        
+        review += `**🔐 数据泄露防护**\n`;
+        review += `- ✅ 助记词、私钥是否可能在签名结果中泄露\n`;
+        review += `- ✅ 错误信息是否已脱敏处理\n`;
+        review += `- ✅ 是否存在敏感信息硬编码\n`;
+        review += `- ✅ 危险关键字检查（unsafe、reflect、cat、replace）\n\n`;
+        
+        review += `**📦 依赖管理**\n`;
+        review += `- ✅ go.mod 是否使用了 replace 关键字\n`;
+        review += `- ✅ 依赖库是否存在安全漏洞或异常变更\n`;
+        review += `- ✅ 是否新增了未经审核的依赖库\n\n`;
+        
+        review += `**💻 代码安全**\n`;
+        review += `- ✅ 是否使用了反射或动态调用\n\n`;
+
+        // Professional suggestions
+        review += `💡 **专业安全建议**:\n`;
+        review += `- 🔒 严格控制网络访问，使用白名单机制\n`;
+        review += `- 🚫 禁用日志输出和文件写入，防止敏感信息泄露\n`;
+        review += `- 🛡️ 对所有错误信息进行脱敏处理\n`;
+        review += `- 🔍 定期检查代码中的硬编码敏感信息\n`;
+        review += `- 📚 谨慎管理依赖库，避免使用有安全风险的版本\n`;
+        review += `- ⚡ 避免使用反射和动态调用，降低安全风险\n\n`;
+
+        // Note about custom rules
+        if (!customRules.length) {
+          review += `📋 **注意**: 专业安全扫描模式当前使用通用安全规则。如需添加特定的专业安全规则，请通过 customRules 参数提供。\n\n`;
+        }
+
+        review += `🔧 **后续操作**:\n`;
+        review += `- 如需将此审查结果写入MR，请使用 write_gitlab_mr_note 工具\n`;
+        review += `- 建议结合专业安全工具进行深度分析\n`;
+        review += `- 当前审查时间: ${new Date().toLocaleString()}\n`;
+        
+        return review;
+      } catch (error) {
+        return `❌ 专业安全扫描审查失败: ${error instanceof Error ? error.message : 'Unknown error'}`;
       }
     }
   });

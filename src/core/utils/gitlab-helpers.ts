@@ -2,7 +2,10 @@ import { loggers } from "./logger.js";
 import { 
   CodeReviewRule,
   getDefaultRulesForProjectTypes,
-  getApplicableRules
+  getApplicableRules,
+  getCodeStyleOptimizationRules,
+  getGeneralSecurityScanRules,
+  getProfessionalSecurityScanRules
 } from "./codereview/rules.js";
 import {
   getProjectSpecificRules
@@ -168,6 +171,136 @@ export function collectMergeRequestRules(
     allRules,
     projectSpecificRules,
     fileSpecificRules,
+    hasProjectConfig,
+    projectConfig
+  };
+}
+
+/**
+ * 收集代码风格优化模式的规则
+ */
+export function collectCodeStyleOptimizationRules(
+  mr: any, 
+  changes: any, 
+  detectedTypes: string[]
+): {
+  allRules: CodeReviewRule[];
+  projectSpecificRules: CodeReviewRule[];
+  hasProjectConfig: boolean;
+  projectConfig?: any;
+} {
+  // 获取代码风格优化规则
+  let codeStyleRules = getCodeStyleOptimizationRules(detectedTypes);
+  let projectSpecificRules: CodeReviewRule[] = [];
+  let hasProjectConfig = false;
+  let projectConfig;
+  
+  // 检查项目特定配置
+  const projectPath = mr.project?.path_with_namespace || mr.project_id;
+  projectConfig = getProjectSpecificRules(projectPath);
+  
+  if (projectConfig) {
+    hasProjectConfig = true;
+    // 过滤出项目特定的风格规则
+    projectSpecificRules = projectConfig.rules.filter(
+      (rule: CodeReviewRule) => rule.category === 'style' || 
+      (rule.category === 'best-practice' && rule.id.includes('style'))
+    );
+  }
+  
+  // 合并所有规则
+  const allRules = mergeRuleSets(projectSpecificRules, codeStyleRules);
+  
+  return {
+    allRules,
+    projectSpecificRules,
+    hasProjectConfig,
+    projectConfig
+  };
+}
+
+/**
+ * 收集通用安全扫描模式的规则
+ */
+export function collectGeneralSecurityScanRules(
+  mr: any, 
+  changes: any, 
+  detectedTypes: string[]
+): {
+  allRules: CodeReviewRule[];
+  projectSpecificRules: CodeReviewRule[];
+  hasProjectConfig: boolean;
+  projectConfig?: any;
+} {
+  // 获取通用安全扫描规则
+  let securityRules = getGeneralSecurityScanRules(detectedTypes);
+  let projectSpecificRules: CodeReviewRule[] = [];
+  let hasProjectConfig = false;
+  let projectConfig;
+  
+  // 检查项目特定配置
+  const projectPath = mr.project?.path_with_namespace || mr.project_id;
+  projectConfig = getProjectSpecificRules(projectPath);
+  
+  if (projectConfig) {
+    hasProjectConfig = true;
+    // 过滤出项目特定的安全规则
+    projectSpecificRules = projectConfig.rules.filter(
+      (rule: CodeReviewRule) => rule.category === 'security'
+    );
+  }
+  
+  // 合并所有规则
+  const allRules = mergeRuleSets(projectSpecificRules, securityRules);
+  
+  return {
+    allRules,
+    projectSpecificRules,
+    hasProjectConfig,
+    projectConfig
+  };
+}
+
+/**
+ * 收集专业安全扫描模式的规则
+ */
+export function collectProfessionalSecurityScanRules(
+  mr: any, 
+  changes: any, 
+  detectedTypes: string[],
+  customRules?: CodeReviewRule[]
+): {
+  allRules: CodeReviewRule[];
+  projectSpecificRules: CodeReviewRule[];
+  customRules: CodeReviewRule[];
+  hasProjectConfig: boolean;
+  projectConfig?: any;
+} {
+  // 获取专业安全扫描规则
+  let professionalSecurityRules = getProfessionalSecurityScanRules(detectedTypes, customRules);
+  let projectSpecificRules: CodeReviewRule[] = [];
+  let hasProjectConfig = false;
+  let projectConfig;
+  
+  // 检查项目特定配置
+  const projectPath = mr.project?.path_with_namespace || mr.project_id;
+  projectConfig = getProjectSpecificRules(projectPath);
+  
+  if (projectConfig) {
+    hasProjectConfig = true;
+    // 过滤出项目特定的安全规则
+    projectSpecificRules = projectConfig.rules.filter(
+      (rule: CodeReviewRule) => rule.category === 'security'
+    );
+  }
+  
+  // 合并所有规则
+  const allRules = mergeRuleSets(projectSpecificRules, professionalSecurityRules);
+  
+  return {
+    allRules,
+    projectSpecificRules,
+    customRules: customRules || [],
     hasProjectConfig,
     projectConfig
   };
