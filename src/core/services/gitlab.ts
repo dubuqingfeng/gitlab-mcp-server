@@ -202,8 +202,8 @@ export class GitlabService {
 ${conflicts}
 💬 **Comments**: ${mr.user_notes_count || 0}
 👍 **Upvotes**: ${mr.upvotes || 0} | 👎 **Downvotes**: ${mr.downvotes || 0}
-📅 **Created**: ${new Date(mr.created_at).toLocaleString()}
-📝 **Updated**: ${new Date(mr.updated_at).toLocaleString()}
+📅 **Created**: ${new Date(mr.created_at).toLocaleString('zh-CN')}
+📝 **Updated**: ${new Date(mr.updated_at).toLocaleString('zh-CN')}
 🔗 **URL**: ${mr.web_url}
 
 **Description**:
@@ -683,7 +683,7 @@ ${mr.description || 'No description provided'}
 - **项目**: ${projectName}
 - **最新提交**: ${branch.commit?.short_id} - ${branch.commit?.title}
 - **作者**: ${branch.commit?.author_name}
-- **提交时间**: ${new Date(branch.commit?.committed_date).toLocaleString()}
+- **提交时间**: ${new Date(branch.commit?.committed_date).toLocaleString('zh-CN')}
 
 📂 **代码库概览**
 - **文件总数**: ${files.length}
@@ -707,7 +707,7 @@ ${files.length > 20 ? `\n... 还有 ${files.length - 20} 个文件` : ''}
 - **项目**: ${projectName}
 - **标题**: ${commit.title}
 - **作者**: ${commit.author_name} <${commit.author_email}>
-- **提交时间**: ${new Date(commit.committed_date).toLocaleString()}
+- **提交时间**: ${new Date(commit.committed_date).toLocaleString('zh-CN')}
 - **提交者**: ${commit.committer_name} <${commit.committer_email}>
 
 📝 **提交描述**:

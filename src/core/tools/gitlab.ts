@@ -585,7 +585,7 @@ export function registerGitlabTools(server: FastMCP) {
         review += `- 如需将此审查结果写入MR，请使用 write_gitlab_mr_note 工具\n`;
         review += `- 建议在实际审查代码后，提供具体的改进建议，需要把用到的规则也写入审查报告里\n`;
         // 添加当前审查时间
-        review += `- 当前审查时间: ${new Date().toLocaleString()}\n`;
+        review += `- 当前审查时间: ${new Date().toLocaleString('zh-CN')}\n`;
         
         // Prepare content for response
         const content = [
@@ -659,7 +659,7 @@ export function registerGitlabTools(server: FastMCP) {
         review += `- **项目**: ${project.name}\n`;
         review += `- **最新提交**: ${branch.commit?.short_id} - ${branch.commit?.title}\n`;
         review += `- **作者**: ${branch.commit?.author_name}\n`;
-        review += `- **提交时间**: ${new Date(branch.commit?.committed_date).toLocaleString()}\n\n`;
+        review += `- **提交时间**: ${new Date(branch.commit?.committed_date).toLocaleString('zh-CN')}\n\n`;
 
         // Code overview
         review += `📂 **代码库概览**\n`;
@@ -744,7 +744,7 @@ export function registerGitlabTools(server: FastMCP) {
         review += `- **项目**: ${project.name}\n`;
         review += `- **标题**: ${commit.title}\n`;
         review += `- **作者**: ${commit.author_name} <${commit.author_email}>\n`;
-        review += `- **提交时间**: ${new Date(commit.committed_date).toLocaleString()}\n`;
+        review += `- **提交时间**: ${new Date(commit.committed_date).toLocaleString('zh-CN')}\n`;
         review += `- **提交者**: ${commit.committer_name} <${commit.committer_email}>\n\n`;
 
         // Commit message
