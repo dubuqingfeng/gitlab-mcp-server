@@ -8,6 +8,7 @@
   "bin": {
     "gitlab-mcp-server": "./bin/cli.js"
   },
+  "mcpName": "io.github.dubuqingfeng/gitlab-mcp-server",
   "main": "build/index.js",
   "files": [
     "build/",
